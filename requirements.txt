@@ -1,0 +1,17 @@
+pydantic
+azure-ai-documentintelligence==1.0.2
+python-dotenv
+openai
+fastapi
+uvicorn
+python-multipart
+streamlit
+requests
+pandas
+aiofiles
+aiohttp
+# azure-cognitiveservices-vision-customvision
+# pdf2image
+azure-ai-vision-imageanalysis
+PyMuPDF
+pillow
