@@ -18,8 +18,9 @@ from azure.core.credentials import AzureKeyCredential
 from dotenv import load_dotenv
 
 from utils.helper import normalize_ocr
-
+from utils.logger import get_logger
 load_dotenv()
+logger = get_logger(__name__)
 
 
 class ProgressTracker:
@@ -72,6 +73,7 @@ class Pdf2ImageDataExtractor:
     """
     
     def __init__(self):
+        logger.info("Initializing Pdf2ImageDataExtractor")
         self.endpoint = os.getenv("VISION_ENDPOINT")
         self.key = os.getenv("VISION_KEY")
         
@@ -87,6 +89,7 @@ class Pdf2ImageDataExtractor:
         """
         Convert PDF to high-resolution images for OCR processing
         """
+        logger.info("Converting PDF to images for OCR")
         doc = fitz.open(stream=pdf_bytes, filetype="pdf")
         images_data = []
         
@@ -100,12 +103,15 @@ class Pdf2ImageDataExtractor:
             images_data.append((page_num, img_bytes, pix.width, pix.height))
         
         doc.close()
+        logger.info(f"Converted {len(images_data)} pages to images for OCR")
         return images_data
     
     def pdf_to_images_for_display(self, pdf_bytes: bytes, dpi: int = 150) -> List[Tuple[int, str, int, int]]:
         """
         Convert PDF to display-resolution images with base64 encoding
         """
+        logger.info("Converting PDF to images for display")
+
         doc = fitz.open(stream=pdf_bytes, filetype="pdf")
         images_data = []
         
@@ -120,29 +126,36 @@ class Pdf2ImageDataExtractor:
             images_data.append((page_num, img_base64, pix.width, pix.height))
         
         doc.close()
+        logger.info(f"Converted {len(images_data)} pages to images for display")
         return images_data
     
     def extract_text_from_image(self, image_bytes: bytes):
         """
         Extract text from image using Azure Vision API
         """
+
+        logger.info("Extracting text from image using Azure Vision API")
         result = self.client.analyze(
             image_data=image_bytes,
             visual_features=[VisualFeatures.CAPTION, VisualFeatures.READ],
             gender_neutral_caption=True,
             model_version="latest"
         )
+        logger.info("Text extraction complete")
         return result
     
     def process_single_page(self, page_data: Tuple[int, bytes, int, int]) -> Dict:
         """
         Process a single page: OCR and normalize results
         """
+
+        logger.info(f"Processing page {page_data[0]} for OCR")
         page_num, img_bytes, width, height = page_data
         
         ocr_result = self.extract_text_from_image(img_bytes)
         annotations = normalize_ocr(ocr_result, width, height)
         
+        logger.info(f"Completed processing page {page_num}")
         return {
             'page_num': page_num,
             'annotations': annotations,
@@ -165,12 +178,14 @@ class BatchProcessor:
         """
         Process a batch of images
         """
+        logger.info(f"Processing batch {batch_id} with {len(images_data)} pages")
         batch_results = []
         
         for page_data in images_data:
             result = self.extractor.process_single_page(page_data)
             batch_results.append(result)
-        
+
+        logger.info(f"Completed processing batch {batch_id}")
         return {
             'batch_id': batch_id,
             'results': batch_results
@@ -184,6 +199,8 @@ class BatchProcessor:
         """
         Process all images in parallel batches
         """
+        logger.info("Starting processing all batches")
+
         batches = [
             images_data[i:i + self.batch_size]
             for i in range(0, len(images_data), self.batch_size)
@@ -192,6 +209,7 @@ class BatchProcessor:
         all_results = []
         completed = 0
         
+        logger.info(f"Total batches to process: {len(batches)}")
         with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
             futures = {
                 executor.submit(self.process_batch, batch, idx): idx
@@ -212,6 +230,7 @@ class BatchProcessor:
         
         all_results.sort(key=lambda x: x['batch_id'])
         
+        logger.info("Completed processing all batches")
         flattened = []
         for batch in all_results:
             flattened.extend(batch['results'])
@@ -236,6 +255,7 @@ class APIDataExtractor:
         """
         Send PDF to API and get extracted structured data
         """
+        logger.info("Starting API data extraction")
         try:
             if progress_tracker:
                 progress_tracker.update_api(0.1, "Sending PDF to API...")
@@ -334,6 +354,9 @@ class ParallelProcessor:
         Returns:
             Dictionary with OCR results, API results, display images, and timing info
         """
+        
+        logger.info("Starting parallel PDF processing")
+
         results = {
             "ocr_results": [],
             "api_results": {"success": False, "data": [], "error": None},
@@ -345,6 +368,7 @@ class ParallelProcessor:
         
         def run_ocr_pipeline():
             """OCR processing pipeline"""
+            logger.info("Starting OCR pipeline")
             ocr_start = time.time()
             
             try:
@@ -456,6 +480,7 @@ class ParallelProcessor:
         """
         Process PDF sequentially (fallback if parallel has issues)
         """
+        logger.info("Starting sequential PDF processing")
         results = {
             "ocr_results": [],
             "api_results": {"success": False, "data": [], "error": None},
@@ -478,8 +503,11 @@ class ParallelProcessor:
             results["ocr_error"] = str(e)
         
         results["timing"]["ocr"] = time.time() - ocr_start
+
+        logger.info("Completed OCR processing")
         
         # API Pipeline
+        logger.info("Starting API extraction")
         api_start = time.time()
         api_result = self.api_extractor.extract_data(pdf_bytes, filename)
         results["api_results"] = {
@@ -490,5 +518,5 @@ class ParallelProcessor:
         results["timing"]["api"] = time.time() - api_start
         
         results["timing"]["total"] = time.time() - start_time
-        
+        logger.info("Completed API extraction")
         return results
