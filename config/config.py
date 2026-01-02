@@ -2,6 +2,10 @@ import os
 from dotenv import load_dotenv
 load_dotenv()
 from .prompt import SYSTEM_PROMPT_FOR_ENTITY_EXTRACTION
+from tenacity import retry,stop_after_attempt,wait_exponential,retry_if_exception_type,before_sleep_log
+
+from utils.logger import get_logger
+logger = get_logger(__name__)
 
 class Config:
     system_prompt_for_entity_extraction = SYSTEM_PROMPT_FOR_ENTITY_EXTRACTION
@@ -10,3 +14,13 @@ class Config:
     DISPLAY_DPI: int = int(os.getenv("DISPLAY_DPI", 150))
     BATCH_SIZE: int = int(os.getenv("BATCH_SIZE", 5))
     MAX_WORKERS: int = int(os.getenv("MAX_WORKERS", 3))
+
+
+
+RETRY_CONFIG = retry(
+    reraise=True,
+    stop=stop_after_attempt(3),  # number of retries
+    wait=wait_exponential(multiplier=1, min=2, max=10),
+    retry=retry_if_exception_type(Exception),
+    before_sleep=before_sleep_log(logger, logger.warning),
+)

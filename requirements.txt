@@ -15,3 +15,4 @@ aiohttp
 azure-ai-vision-imageanalysis
 PyMuPDF
 pillow
+tenacity==9.1.2
