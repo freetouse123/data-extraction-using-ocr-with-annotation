@@ -1,40 +1,95 @@
 """
 Helper functions for PDF processing, OCR normalization, and HTML generation
 """
-
+from .logger import get_logger
 from typing import List, Dict, Tuple
 import base64
 
+logger = get_logger(__name__)
 
-def normalize_ocr(result, img_width: int, img_height: int) -> List[Dict]:
+"""
+Helper utilities for OCR processing
+"""
+
+from typing import List, Dict, Any
+
+
+def normalize_ocr(ocr_result, img_width: int, img_height: int) -> List[Dict[str, Any]]:
     """
-    Normalize OCR results from Azure Vision API
+    Normalize OCR results to extract text with bounding boxes
+    Returns coordinates in both normalized (0-1) and pixel formats
     """
     annotations = []
     
-    if not result or not result.read or not result.read.blocks:
+    if not ocr_result.read or not ocr_result.read.blocks:
         return annotations
     
-    for block in result.read.blocks:
+    for block in ocr_result.read.blocks:
         for line in block.lines:
-            text = " ".join(word.text for word in line.words)
+            # Get bounding polygon (4 points: top-left, top-right, bottom-right, bottom-left)
+            polygon = line.bounding_polygon
             
-            xs, ys = [], []
-            for word in line.words:
-                for p in word.bounding_polygon:
-                    xs.append(p.x)
-                    ys.append(p.y)
-            
-            if xs and ys:
-                annotations.append({
-                    "text": text,
-                    "x0": min(xs),
-                    "y0": min(ys),
-                    "x1": max(xs),
-                    "y1": max(ys),
-                    "img_width": img_width,
-                    "img_height": img_height
-                })
+            if len(polygon) >= 4:
+                # Extract coordinates
+                x_coords = [p.x for p in polygon]
+                y_coords = [p.y for p in polygon]
+                
+                x_min = min(x_coords)
+                x_max = max(x_coords)
+                y_min = min(y_coords)
+                y_max = max(y_coords)
+                
+                # Pixel coordinates
+                bbox_pixels = {
+                    'x': x_min,
+                    'y': y_min,
+                    'width': x_max - x_min,
+                    'height': y_max - y_min
+                }
+                
+                # Normalized coordinates (0-1)
+                bbox_normalized = {
+                    'x': x_min / img_width,
+                    'y': y_min / img_height,
+                    'width': (x_max - x_min) / img_width,
+                    'height': (y_max - y_min) / img_height
+                }
+                
+                annotation = {
+                    'text': line.text,
+                    'confidence': getattr(line, 'confidence', 1.0),
+                    'bbox_pixels': bbox_pixels,
+                    'bbox_normalized': bbox_normalized,
+                    'polygon': [{'x': p.x, 'y': p.y} for p in polygon]
+                }
+                
+                # Process individual words if available
+                words = []
+                for word in line.words:
+                    word_polygon = word.bounding_polygon
+                    if len(word_polygon) >= 4:
+                        wx_coords = [p.x for p in word_polygon]
+                        wy_coords = [p.y for p in word_polygon]
+                        
+                        words.append({
+                            'text': word.text,
+                            'confidence': getattr(word, 'confidence', 1.0),
+                            'bbox_pixels': {
+                                'x': min(wx_coords),
+                                'y': min(wy_coords),
+                                'width': max(wx_coords) - min(wx_coords),
+                                'height': max(wy_coords) - min(wy_coords)
+                            },
+                            'bbox_normalized': {
+                                'x': min(wx_coords) / img_width,
+                                'y': min(wy_coords) / img_height,
+                                'width': (max(wx_coords) - min(wx_coords)) / img_width,
+                                'height': (max(wy_coords) - min(wy_coords)) / img_height
+                            }
+                        })
+                
+                annotation['words'] = words
+                annotations.append(annotation)
     
     return annotations
 
