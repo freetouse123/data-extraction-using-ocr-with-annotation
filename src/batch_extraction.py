@@ -5,9 +5,11 @@ from azure.ai.documentintelligence.models import DocumentContentFormat
 from openai import AsyncAzureOpenAI
 
 from models.english_enity_model import EnityExtractionResponse
+from models.schema import DataExtractionSchema
 from utils.logger import get_logger
 from dotenv import load_dotenv
 from config.config import Config
+from config.config import RETRY_CONFIG
 from typing import List
 import json
 import uuid
@@ -33,6 +35,7 @@ class BatchDocumentExtraction:
             api_version=os.getenv("API_VERSION")
             )
     
+    @RETRY_CONFIG
     async def extract_data(self, pdf:bytes):
         try:
             logger.info("Starting data extraction from document")
@@ -55,7 +58,8 @@ class BatchDocumentExtraction:
         except Exception as e:
             logger.error(e)
             raise
-    
+
+    @RETRY_CONFIG
     async def response_generation(self, content:str)-> str:
         try:
             logger.info("Generating the response of the extracted content")

@@ -5,6 +5,8 @@ from azure.ai.documentintelligence.models import DocumentContentFormat
 from openai import AsyncAzureOpenAI
 
 from models.english_enity_model import EnityExtractionResponse
+from models.schema import DataExtractionSchema
+from config.config import RETRY_CONFIG
 from utils.logger import get_logger
 from dotenv import load_dotenv
 from config.config import Config
@@ -29,6 +31,8 @@ class DocumentDataExtractor:
             api_version=os.getenv("API_VERSION")
             )
 
+
+    @RETRY_CONFIG
     async def extract_data(self, pdf:bytes):
         try:
             logger.info("Starting data extraction from document")
@@ -47,20 +51,12 @@ class DocumentDataExtractor:
             result = await poller.result()
             logger.info(f"document extracted sucessfully")
 
-            # if result.languages:
-            #     logger.info(f"Detected {len(result.languages)} languages:")
-            #     for lang_idx, lang in enumerate(result.languages):
-            #         logger.info(f"- Language #{lang_idx}: locale '{lang.locale}'")
-            #         logger.info(f"  Confidence: {lang.confidence}")
-            #         logger.info(
-            #             f"  Text: '{','.join([result.content[span.offset : span.offset + span.length] for span in lang.spans])}'"
-            #         )
-
             return result
         except Exception as e:
             logger.error(f"Error in extract_data: {e}")
             raise
     
+    @RETRY_CONFIG
     async def response_generation(self, content:str)-> str:
         try:
             logger.info("Generating the response of the extracted content")
@@ -70,7 +66,7 @@ class DocumentDataExtractor:
                     {"role":"system", "content":Config.system_prompt_for_entity_extraction},
                     {"role":"user","content": content},
                     ],
-                response_format= EnityExtractionResponse,
+                response_format= DataExtractionSchema,
             )
 
             ## total token used to generate the response:
