@@ -4,8 +4,10 @@ from azure.ai.documentintelligence.models import DocumentAnalysisFeature
 from azure.ai.documentintelligence.models import DocumentContentFormat
 from openai import AsyncAzureOpenAI
 
-from models.english_enity_model import EnityExtractionResponse
 from models.schema import DataExtractionSchema
+from models.swedish_poc_model import LCAnalyticalDocumentSwedish
+from models.english_enity_model import LCAnalyticalDocumentEnglish
+
 from config.config import RETRY_CONFIG
 from utils.logger import get_logger
 from dotenv import load_dotenv
@@ -66,7 +68,7 @@ class DocumentDataExtractor:
                     {"role":"system", "content":Config.system_prompt_for_entity_extraction},
                     {"role":"user","content": content},
                     ],
-                response_format= DataExtractionSchema,
+                response_format= LCAnalyticalDocumentSwedish,
             )
 
             ## total token used to generate the response:

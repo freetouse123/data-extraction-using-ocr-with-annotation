@@ -4,13 +4,15 @@ from azure.ai.documentintelligence.models import DocumentAnalysisFeature
 from azure.ai.documentintelligence.models import DocumentContentFormat
 from openai import AsyncAzureOpenAI
 
-from models.english_enity_model import EnityExtractionResponse
 from models.schema import DataExtractionSchema
+from models.swedish_poc_model import LCAnalyticalDocumentSwedish
+from models.english_enity_model import LCAnalyticalDocumentEnglish
+from utils.utils import  merge_batch_responses, deduplicate_list_of_dicts
 from utils.logger import get_logger
 from dotenv import load_dotenv
 from config.config import Config
 from config.config import RETRY_CONFIG
-from typing import List
+from typing import List, Dict, Any
 import json
 import uuid
 import aiofiles
@@ -60,16 +62,39 @@ class BatchDocumentExtraction:
             raise
 
     @RETRY_CONFIG
-    async def response_generation(self, content:str)-> str:
+    async def response_generation(self, content:str, batch_context: Dict[str, Any], language:str = "english")-> str:
+        
+        if language.lower() == "english":
+            validator_model = LCAnalyticalDocumentEnglish
+        else:
+            validator_model = LCAnalyticalDocumentSwedish
+
         try:
+            system_prompt = f"""
+Language: {language}
+{Config.system_prompt_for_entity_extraction}
+
+BATCH CONTEXT:
+- Batch number: {batch_context.get('batch_number')}
+- Page range: {batch_context.get('page_range')}
+- Total batches: {batch_context.get('total_batches')}
+
+INSTRUCTIONS:
+- Extract ALL information present in this batch
+- If a section is incomplete (starts or ends mid-section), extract what's available
+- Mark sections as 'partial' if they appear incomplete
+- Do not infer missing information
+- Always provide response in Following language: {language}
+"""
+            
             logger.info("Generating the response of the extracted content")
             response = await self.openai_client.beta.chat.completions.parse(
                 model = os.getenv("AZURE_OPENAI_DEPLOYMENT"),
                 messages = [
-                    {"role":"system", "content":Config.system_prompt_for_entity_extraction},
+                    {"role":"system", "content":system_prompt},
                     {"role":"user","content": content},
                     ],
-                response_format= EnityExtractionResponse,
+                response_format= validator_model,
             )
 
             ## total token used to generate the response:
@@ -87,17 +112,23 @@ class BatchDocumentExtraction:
             raise
     
     ## Handling the batch extraction after extractiing the data
-    async def batch_data_extraction(self, pdf: bytes):
+    async def batch_data_extraction(self, pdf: bytes, language:str="English") -> Dict[str, Any]:
+        """
+        Main method: Extract data in batches and return consolidated JSON
+        
+        Returns:
+            Dict: Single consolidated LCAnalyticalDocument JSON
+        """
         try:
-            logger.info("Handling Batch Data Extraction For Multiple Pages")
+            logger.info("Starting batch data extraction")
 
-            # Extract document data using Azure Document Intelligence
+            # Step 1: Extract document content using Azure Document Intelligence
             doc_result = await self.extract_data(pdf)
 
             if not doc_result or not doc_result.content:
                 raise ValueError("No content extracted from document")
 
-            # Split content by page
+            # Step 2: Split content by page
             pages = [
                 page.strip()
                 for page in doc_result.content.split("<!-- PageBreak -->")
@@ -107,33 +138,57 @@ class BatchDocumentExtraction:
             logger.info(f"Total pages extracted: {len(pages)}")
 
             batch_size = int(Config.batch_size)
+            total_batches = (len(pages) + batch_size - 1) // batch_size
             
-            final_response = []
+            batch_responses = []
 
-            # Batch pages (3 pages per batch)
+            # Step 3: Process each batch
             for i in range(0, len(pages), batch_size):
                 batch_pages = pages[i:i + batch_size]
-
                 combined_content = "\n\n".join(batch_pages)
+                
+                batch_number = (i // batch_size) + 1
+                page_range = f"{i + 1}-{i + len(batch_pages)}"
+                
+                logger.info(f"Processing batch {batch_number}/{total_batches} (pages {page_range})")
 
-                logger.info(
-                    f"Processing batch {i // batch_size + 1} "
-                    f"with pages {i + 1} to {i + len(batch_pages)}"
-                )
+                # Create batch context
+                batch_context = {
+                    "batch_number": batch_number,
+                    "page_range": page_range,
+                    "total_batches": total_batches,
+                    "total_pages": len(pages)
+                }
 
-                # Step 4: Entity extraction / LLM processing
+                # Step 4: Generate structured response for this batch
                 response = await self.response_generation(
-                    content=combined_content
+                    content=combined_content,
+                    batch_context=batch_context,
+                    language= language
                 )
 
-                # Store structured response
-                final_response.append({
-                    "batch_number": (i // batch_size) + 1,
-                    "page_range": f"{i + 1}-{i + len(batch_pages)}",
-                    "response": response
+                # Store batch response with metadata
+                batch_responses.append({
+                    "batch_number": batch_number,
+                    "page_range": page_range,
+                    "response": response,
+                    "pages_in_batch": len(batch_pages)
                 })
 
-            return final_response
+            # Step 5: Merge all batch responses into final consolidated JSON
+            logger.info("Merging all batch responses into final document")
+            final_document = merge_batch_responses(batch_responses)
+            
+            # Add processing metadata
+            final_document["_metadata"] = {
+                "total_pages_processed": len(pages),
+                "total_batches": total_batches,
+                "batch_size": batch_size,
+                "processing_complete": True
+            }
+            
+            logger.info("Batch data extraction completed successfully")
+            return final_document
 
         except Exception as e:
             logger.exception("Error in batch_data_extraction")
