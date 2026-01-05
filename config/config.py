@@ -2,7 +2,7 @@ import os
 from dotenv import load_dotenv
 load_dotenv()
 from .prompt import SYSTEM_PROMPT_FOR_ENTITY_EXTRACTION
-from tenacity import retry,stop_after_attempt,wait_exponential,retry_if_exception_type,before_sleep_log
+from tenacity import retry,stop_after_attempt,wait_random_exponential,retry_if_exception_type,before_sleep_log
 
 from utils.logger import get_logger
 logger = get_logger(__name__)
@@ -17,10 +17,11 @@ class Config:
 
 
 
+## configuration for retrying operations with tenacity
 RETRY_CONFIG = retry(
     reraise=True,
-    stop=stop_after_attempt(3),  # number of retries
-    wait=wait_exponential(multiplier=1, min=2, max=10),
+    stop=stop_after_attempt(6),
+    wait=wait_random_exponential(min=1, max=60),
     retry=retry_if_exception_type(Exception),
     before_sleep=before_sleep_log(logger, logger.warning),
 )

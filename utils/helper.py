@@ -624,15 +624,12 @@ def generate_combined_viewer_html(
         
         annotations_html = ""
         for ann in page_annotations:
-            # Get OCR dimensions
-            ocr_width = ann.get('img_width', display_width / scale_factor)
-            ocr_height = ann.get('img_height', display_height / scale_factor)
-            
-            # Convert to percentages for responsive scaling
-            left_pct = (ann['x0'] / ocr_width) * 100
-            top_pct = (ann['y0'] / ocr_height) * 100
-            width_pct = ((ann['x1'] - ann['x0']) / ocr_width) * 100
-            height_pct = ((ann['y1'] - ann['y0']) / ocr_height) * 100
+            # Extract bounding box from normalized format
+            bbox = ann.get('bbox_normalized', {})
+            left_pct = bbox.get('x', 0) * 100
+            top_pct = bbox.get('y', 0) * 100
+            width_pct = bbox.get('width', 0) * 100
+            height_pct = bbox.get('height', 0) * 100
             
             text = ann['text'].replace('"', '&quot;').replace("'", "&#39;").replace("<", "&lt;").replace(">", "&gt;")
             
