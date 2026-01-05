@@ -268,7 +268,7 @@ def main():
                         batch_size=batch_size
                     )
                     
-                    # Start processing in thread
+                    # Start processing in threadex
                     process_thread, result_holder, error_holder = process_with_progress(
                         pdf_bytes=pdf_bytes,
                         filename=uploaded_file.name,
