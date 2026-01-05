@@ -7,7 +7,7 @@ import os
 import base64
 import time
 import fitz  # PyMuPDF
-from typing import List, Tuple, Dict, Optional
+from typing import List, Tuple, Dict, Optional, Literal
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import requests
 import threading
@@ -248,25 +248,29 @@ class APIDataExtractor:
     
     def extract_data(
         self, 
-        pdf_bytes: bytes, 
+        pdf_bytes: bytes,
+        language: Literal["English", "Swedish"] = "English",
         filename: str = "document.pdf",
         progress_tracker: Optional[ProgressTracker] = None
     ) -> Dict:
         """
         Send PDF to API and get extracted structured data
         """
-        logger.info("Starting API data extraction")
+        logger.info(f"Starting API data extraction with language: {language}")
         try:
             if progress_tracker:
-                progress_tracker.update_api(0.1, "Sending PDF to API...")
+                progress_tracker.update_api(0.1, f"Sending PDF to API ({language})...")
             
             files = {
                 "pdf": (filename, pdf_bytes, "application/pdf")
             }
-            
+            data = {
+                "language": language.lower()
+            }
             response = requests.post(
                 self.api_url,
                 files=files,
+                data=data,
                 headers={"accept": "application/json"},
                 timeout=300
             )
@@ -279,9 +283,12 @@ class APIDataExtractor:
                 if result.get("status") == "success":
                     if progress_tracker:
                         progress_tracker.update_api(1.0, "Complete!")
+                    
                     return {
                         "success": True,
-                        "data": result.get("data", []),
+                        "data": result.get("data", {}),
+                        "language": result.get("language", language),
+                        "processing_time": result.get("processing_time_seconds", 0),
                         "error": None
                     }
                 else:
@@ -289,7 +296,9 @@ class APIDataExtractor:
                         progress_tracker.update_api(1.0, "Failed")
                     return {
                         "success": False,
-                        "data": [],
+                        "data": {},
+                        "language": language,
+                        "processing_time": 0,
                         "error": result.get("message", "Extraction failed")
                     }
             else:
@@ -297,7 +306,9 @@ class APIDataExtractor:
                     progress_tracker.update_api(1.0, "API Error")
                 return {
                     "success": False,
-                    "data": [],
+                    "data": {},
+                    "language": language,
+                    "processing_time": 0,
                     "error": f"API Error: {response.status_code}"
                 }
         
@@ -306,7 +317,9 @@ class APIDataExtractor:
                 progress_tracker.update_api(1.0, "Connection failed")
             return {
                 "success": False,
-                "data": [],
+                "data": {},
+                "language": language,
+                "processing_time": 0,
                 "error": "Could not connect to API server"
             }
         except requests.exceptions.Timeout:
@@ -314,7 +327,9 @@ class APIDataExtractor:
                 progress_tracker.update_api(1.0, "Timeout")
             return {
                 "success": False,
-                "data": [],
+                "data": {},
+                "language": language,
+                "processing_time": 0,
                 "error": "Request timed out"
             }
         except Exception as e:
@@ -322,7 +337,9 @@ class APIDataExtractor:
                 progress_tracker.update_api(1.0, "Error")
             return {
                 "success": False,
-                "data": [],
+                "data": {},
+                "language": language,
+                "processing_time": 0,
                 "error": str(e)
             }
 
@@ -346,6 +363,7 @@ class ParallelProcessor:
         self, 
         pdf_bytes: bytes, 
         filename: str = "document.pdf",
+        language: str = "English",
         progress_tracker: Optional[ProgressTracker] = None
     ) -> Dict:
         """
@@ -355,11 +373,11 @@ class ParallelProcessor:
             Dictionary with OCR results, API results, display images, and timing info
         """
         
-        logger.info("Starting parallel PDF processing")
+        logger.info(f"Starting parallel PDF processing with language: {language}")
 
         results = {
             "ocr_results": [],
-            "api_results": {"success": False, "data": [], "error": None},
+            "api_results": {"success": False, "data": {}, "error": None},
             "display_images": [],
             "timing": {}
         }
@@ -419,8 +437,9 @@ class ParallelProcessor:
             api_start = time.time()
             
             api_result = self.api_extractor.extract_data(
-                pdf_bytes, 
-                filename,
+                pdf_bytes,
+                language=language,
+                filename=filename,
                 progress_tracker=progress_tracker
             )
             
@@ -429,7 +448,7 @@ class ParallelProcessor:
             
             return api_result
         
-        # Run both pipelines in parallel using threads (not ThreadPoolExecutor for the outer level)
+        # Run both pipelines in parallel using threads
         ocr_result_holder = [None]
         api_result_holder = [None]
         
@@ -462,7 +481,9 @@ class ParallelProcessor:
         if api_data:
             results["api_results"] = {
                 "success": api_data.get("success", False),
-                "data": api_data.get("data", []),
+                "data": api_data.get("data", {}),
+                "language": api_data.get("language", language),
+                "processing_time": api_data.get("processing_time", 0),
                 "error": api_data.get("error")
             }
             results["timing"]["api"] = api_data.get("api_time", 0)
@@ -475,15 +496,16 @@ class ParallelProcessor:
     def process_pdf_sequential(
         self, 
         pdf_bytes: bytes, 
-        filename: str = "document.pdf"
+        filename: str = "document.pdf",
+        language: str = "English"
     ) -> Dict:
         """
         Process PDF sequentially (fallback if parallel has issues)
         """
-        logger.info("Starting sequential PDF processing")
+        logger.info(f"Starting sequential PDF processing with language: {language}")
         results = {
             "ocr_results": [],
-            "api_results": {"success": False, "data": [], "error": None},
+            "api_results": {"success": False, "data": {}, "error": None},
             "display_images": [],
             "timing": {}
         }
@@ -509,10 +531,16 @@ class ParallelProcessor:
         # API Pipeline
         logger.info("Starting API extraction")
         api_start = time.time()
-        api_result = self.api_extractor.extract_data(pdf_bytes, filename)
+        api_result = self.api_extractor.extract_data(
+            pdf_bytes,
+            language=language,
+            filename=filename
+        )
         results["api_results"] = {
             "success": api_result.get("success", False),
-            "data": api_result.get("data", []),
+            "data": api_result.get("data", {}),
+            "language": api_result.get("language", language),
+            "processing_time": api_result.get("processing_time", 0),
             "error": api_result.get("error")
         }
         results["timing"]["api"] = time.time() - api_start

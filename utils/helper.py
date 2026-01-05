@@ -497,105 +497,100 @@ def generate_pdf_viewer_html(display_images: List[Tuple], ocr_results: List[Dict
     return html
 
 
-def format_extracted_data_html(extracted_data: List[Dict]) -> str:
-    """
-    Format extracted API data as styled HTML for display
-    """
-    if not extracted_data:
-        return "<p style='color:#888;text-align:center;padding:20px;'>No data extracted</p>"
-    
-    html_parts = []
-    
-    for batch in extracted_data:
-        batch_no = batch.get("batch_number", "N/A")
-        page_range = batch.get("page_range", "N/A")
-        response = batch.get("response", {})
-        
-        batch_html = f'''
+def format_extracted_data_html(data: dict) -> str:
+    if not isinstance(data, dict):
+        return "<p>No data</p>"
+
+    def labelize(key: str) -> str:
+        return key.replace("_", " ").title()
+
+    def safe(val):
+        if val is None:
+            return "—"
+        return str(val).replace("<", "&lt;").replace(">", "&gt;")
+
+    def render_table(d: dict) -> str:
+        rows = ""
+        for k, v in d.items():
+            if isinstance(v, dict):
+                rows += f"""
+                <tr>
+                    <td class="key">{labelize(k)}</td>
+                    <td>{render_subsection(v)}</td>
+                </tr>
+                """
+            elif isinstance(v, list):
+                rows += f"""
+                <tr>
+                    <td class="key">{labelize(k)}</td>
+                    <td>{render_list(v)}</td>
+                </tr>
+                """
+            else:
+                rows += f"""
+                <tr>
+                    <td class="key">{labelize(k)}</td>
+                    <td class="value">{safe(v)}</td>
+                </tr>
+                """
+        return f"<table class='kv-table'>{rows}</table>"
+
+    def render_list(lst: list) -> str:
+        if not lst:
+            return "—"
+        if isinstance(lst[0], dict):
+            items = ""
+            for idx, item in enumerate(lst, 1):
+                items += f"""
+                <div class="sub-card">
+                    <div class="sub-title">Item {idx}</div>
+                    {render_table(item)}
+                </div>
+                """
+            return items
+        return "<ul>" + "".join(f"<li>{safe(v)}</li>" for v in lst) + "</ul>"
+
+    def render_subsection(d: dict) -> str:
+        blocks = ""
+        for k, v in d.items():
+            if isinstance(v, dict):
+                blocks += f"""
+                <div class="sub-card">
+                    <div class="sub-title">{labelize(k)}</div>
+                    {render_table(v)}
+                </div>
+                """
+            else:
+                blocks += f"""
+                <div class="inline-row">
+                    <span class="inline-key">{labelize(k)}:</span>
+                    <span class="inline-value">{safe(v)}</span>
+                </div>
+                """
+        return blocks
+
+    html = ""
+
+    for section, content in data.items():
+        html += f"""
         <div class="batch-card">
             <div class="batch-header">
-                <span class="batch-icon">📦</span>
-                <span>Batch {batch_no}</span>
-                <span class="page-badge">Pages {page_range}</span>
+                📌 {labelize(section)}
             </div>
             <div class="batch-content">
-        '''
-        
-        # Analysis Instruction
-        if response.get("analysis_instruction"):
-            batch_html += '<div class="section"><h4>🧪 Analysis Instruction</h4><table>'
-            for key, value in response["analysis_instruction"].items():
-                batch_html += f'<tr><td class="key">{key}</td><td>{value}</td></tr>'
-            batch_html += '</table></div>'
-        
-        # Specifications
-        if response.get("specifications"):
-            batch_html += '<div class="section"><h4>📏 Specifications</h4><table>'
-            specs = response["specifications"]
-            if specs and len(specs) > 0:
-                headers = list(specs[0].keys()) if isinstance(specs[0], dict) else []
-                if headers:
-                    batch_html += '<tr>' + ''.join(f'<th>{h}</th>' for h in headers) + '</tr>'
-                for spec in specs:
-                    if isinstance(spec, dict):
-                        batch_html += '<tr>' + ''.join(f'<td>{spec.get(h, "")}</td>' for h in headers) + '</tr>'
-            batch_html += '</table></div>'
-        
-        # Protocol Info
-        if response.get("protocol_info"):
-            batch_html += '<div class="section"><h4>📑 Protocol Info</h4><table>'
-            for key, value in response["protocol_info"].items():
-                batch_html += f'<tr><td class="key">{key}</td><td>{value}</td></tr>'
-            batch_html += '</table></div>'
-        
-        # Instrumentation
-        if response.get("instrumentation"):
-            batch_html += '<div class="section"><h4>⚙️ Instrumentation</h4><table>'
-            for key, val in response["instrumentation"].items():
-                if isinstance(val, dict):
-                    for sub_k, sub_v in val.items():
-                        batch_html += f'<tr><td class="key">{key} - {sub_k}</td><td>{sub_v}</td></tr>'
-                else:
-                    batch_html += f'<tr><td class="key">{key}</td><td>{val}</td></tr>'
-            batch_html += '</table></div>'
-        
-        # Reagents
-        if response.get("reagents"):
-            batch_html += '<div class="section"><h4>🧴 Reagents</h4><table>'
-            reagents = response["reagents"]
-            if reagents and len(reagents) > 0:
-                headers = list(reagents[0].keys()) if isinstance(reagents[0], dict) else []
-                if headers:
-                    batch_html += '<tr>' + ''.join(f'<th>{h}</th>' for h in headers) + '</tr>'
-                for reagent in reagents:
-                    if isinstance(reagent, dict):
-                        batch_html += '<tr>' + ''.join(f'<td>{reagent.get(h, "")}</td>' for h in headers) + '</tr>'
-            batch_html += '</table></div>'
-        
-        # Consumables
-        if response.get("consumables"):
-            batch_html += '<div class="section"><h4>🧾 Consumables</h4><table>'
-            consumables = response["consumables"]
-            if consumables and len(consumables) > 0:
-                headers = list(consumables[0].keys()) if isinstance(consumables[0], dict) else []
-                if headers:
-                    batch_html += '<tr>' + ''.join(f'<th>{h}</th>' for h in headers) + '</tr>'
-                for item in consumables:
-                    if isinstance(item, dict):
-                        batch_html += '<tr>' + ''.join(f'<td>{item.get(h, "")}</td>' for h in headers) + '</tr>'
-            batch_html += '</table></div>'
-        
-        # Sign-off
-        if response.get("sign_off"):
-            batch_html += '<div class="section"><h4>✍️ Sign-off</h4><table>'
-            for key, value in response["sign_off"].items():
-                batch_html += f'<tr><td class="key">{key}</td><td>{value}</td></tr>'
-            batch_html += '</table></div>'
-        
-        batch_html += '</div></div>'
-        html_parts.append(batch_html)
-    
-    return ''.join(html_parts)
+        """
+
+        if isinstance(content, dict):
+            html += render_table(content)
+        elif isinstance(content, list):
+            html += render_list(content)
+        else:
+            html += f"<p>{safe(content)}</p>"
+
+        html += "</div></div>"
+
+    return html
+
 
 
 def generate_combined_viewer_html(
@@ -999,6 +994,60 @@ def generate_combined_viewer_html(
                 max-width: 800px;
                 margin: 0 auto;
             }}
+            .kv-table {{
+                width: 100%;
+                border-collapse: collapse;
+                font-size: 12px;
+            }}
+
+            .kv-table td {{
+                padding: 8px 10px;
+                border-bottom: 1px solid #2a2a4a;
+                vertical-align: top;
+            }}
+
+            .kv-table td.key {{
+                width: 35%;
+                color: #9aa4ff;
+                font-weight: 600;
+            }}
+
+            .kv-table td.value {{
+                color: #eaeaff;
+                word-break: break-word;
+            }}
+
+            .sub-card {{
+                background: #1b1b35;
+                border: 1px solid #2a2a4a;
+                border-radius: 6px;
+                padding: 8px;
+                margin: 8px 0;
+            }}
+
+            .sub-title {{
+                font-size: 11px;
+                font-weight: 700;
+                color: #ffd479;
+                margin-bottom: 6px;
+                text-transform: uppercase;
+            }}
+
+            .inline-row {{
+                display: flex;
+                gap: 6px;
+                margin-bottom: 4px;
+            }}
+
+            .inline-key {{
+                color: #9aa4ff;
+                font-weight: 600;
+            }}
+
+            .inline-value {{
+                color: #eaeaff;
+            }}
+
         </style>
     </head>
     <body>
@@ -1014,7 +1063,7 @@ def generate_combined_viewer_html(
                         </select>
                         <button class="ctrl-btn" onclick="nextPage()">▶</button>
                         <div class="zoom-controls">
-                            <button onclick="zoomOut()">−</button>
+                            <button onclick="zoomOut()">−</button>x
                             <span class="zoom-level" id="zoomLevel">100%</span>
                             <button onclick="zoomIn()">+</button>
                         </div>

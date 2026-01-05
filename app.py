@@ -8,6 +8,7 @@ import streamlit.components.v1 as components
 import pandas as pd
 import time
 import os
+import json
 from dotenv import load_dotenv
 
 from src.image_data_extraction import (
@@ -25,7 +26,7 @@ load_dotenv()
 # PAGE CONFIG
 # ==========================
 st.set_page_config(
-    page_title="PDF Processing Suite",
+    page_title="Alembic Handwritten Fields Extraction ",
     page_icon="📄",
     layout="wide",
     initial_sidebar_state="expanded"
@@ -91,7 +92,19 @@ st.markdown("""
 # ==========================
 # SIDEBAR
 # ==========================
-st.sidebar.title("📄 PDF Processing Suite")
+st.sidebar.title("📄 Alembic Handwritten Fields Extraction ")
+st.sidebar.markdown("---")
+
+# Language Selection
+st.sidebar.markdown("### 🌐 Language")
+language = st.sidebar.toggle(
+    "Swedish",
+    value=False,
+    help="Toggle between English and Swedish"
+)
+selected_language = "Swedish" if language else "English"
+st.sidebar.info(f"Selected: **{selected_language}**")
+
 st.sidebar.markdown("---")
 
 # API Configuration
@@ -136,6 +149,7 @@ st.sidebar.info(
 def process_with_progress(
     pdf_bytes: bytes,
     filename: str,
+    language: str,
     parallel_processor: ParallelProcessor,
     use_parallel: bool,
     progress_tracker: ProgressTracker
@@ -154,12 +168,14 @@ def process_with_progress(
                 result_holder[0] = parallel_processor.process_pdf_parallel(
                     pdf_bytes=pdf_bytes,
                     filename=filename,
+                    language=language,
                     progress_tracker=progress_tracker
                 )
             else:
                 result_holder[0] = parallel_processor.process_pdf_sequential(
                     pdf_bytes=pdf_bytes,
-                    filename=filename
+                    filename=filename,
+                    language=language
                 )
         except Exception as e:
             error_holder[0] = str(e)
@@ -175,9 +191,9 @@ def process_with_progress(
 # MAIN APP
 # ==========================
 def main():
-    st.title("📄 PDF Processing Suite")
+    st.title("📄 Alembic Handwritten Fields Extraction ")
     st.markdown(
-        '<p class="subtitle">Upload a PDF for parallel OCR annotation and structured data extraction</p>',
+        '<p class="subtitle">Upload a PDF For extraction of the Handwritten Fields using the OCR</p>',
         unsafe_allow_html=True
     )
     
@@ -192,7 +208,7 @@ def main():
         st.session_state.processing_complete = False
         st.session_state.combined_html = None
         st.session_state.ocr_results = []
-        st.session_state.api_results = {"success": False, "data": [], "error": None}
+        st.session_state.api_results = {"success": False, "data": {}, "error": None}
         st.session_state.display_images = []
         st.session_state.timing = {}
         st.session_state.pdf_filename = None
@@ -216,9 +232,11 @@ def main():
         pdf_bytes = uploaded_file.read()
         
         # Show file info
-        col1, col2 = st.columns([3, 1])
+        col1, col2, col3 = st.columns([2, 1, 1])
         with col1:
             st.success(f"📁 **{uploaded_file.name}** ({len(pdf_bytes) / 1024:.1f} KB)")
+        with col2:
+            st.info(f"🌐 Language: **{selected_language}**")
         
         # Process button
         if not st.session_state.processing_complete and not st.session_state.is_processing:
@@ -229,7 +247,7 @@ def main():
                 process_btn = st.button(
                     "🚀 Extract Text & Data",
                     type="primary",
-                    width="stretch"
+                    use_container_width=True
                 )
             
             if process_btn:
@@ -268,10 +286,11 @@ def main():
                         batch_size=batch_size
                     )
                     
-                    # Start processing in threadex
+                    # Start processing in thread
                     process_thread, result_holder, error_holder = process_with_progress(
                         pdf_bytes=pdf_bytes,
                         filename=uploaded_file.name,
+                        language=selected_language,
                         parallel_processor=parallel_processor,
                         use_parallel=use_parallel,
                         progress_tracker=progress_tracker
@@ -319,7 +338,7 @@ def main():
                             st.session_state.combined_html = generate_combined_viewer_html(
                                 st.session_state.display_images,
                                 st.session_state.ocr_results,
-                                st.session_state.api_results.get("data", [])
+                                st.session_state.api_results.get("data", {})
                             )
                 
                 else:
@@ -329,7 +348,11 @@ def main():
                     api_status_text.caption("Sending to API...")
                     api_progress_bar.progress(0.3)
                     
-                    api_result = api_extractor.extract_data(pdf_bytes, uploaded_file.name)
+                    api_result = api_extractor.extract_data(
+                        pdf_bytes, 
+                        language=selected_language,
+                        filename=uploaded_file.name
+                    )
                     
                     api_progress_bar.progress(1.0)
                     api_status_text.caption("✅ Complete!")
@@ -363,7 +386,7 @@ def main():
             api_results = st.session_state.api_results
             
             # Metrics
-            col1, col2, col3, col4, col5, col6 = st.columns(6)
+            col1, col2, col3, col4, col5 = st.columns(5)
             
             with col1:
                 st.metric("📄 Pages", len(st.session_state.display_images) if st.session_state.display_images else 0)
@@ -373,20 +396,18 @@ def main():
                 st.metric("📝 Annotations", total_annotations)
             
             with col3:
-                st.metric("📦 API Batches", len(api_results.get("data", [])))
-            
-            with col4:
                 st.metric("⚡ OCR Time", f"{timing.get('ocr', 0):.1f}s")
             
-            with col5:
-                st.metric("🌐 API Time", f"{timing.get('api', 0):.1f}s")
+            with col4:
+                api_time = api_results.get("processing_time", timing.get('api', 0))
+                st.metric("🌐 API Time", f"{api_time:.1f}s")
             
-            with col6:
+            with col5:
                 if st.button("🔄 New PDF"):
                     st.session_state.processing_complete = False
                     st.session_state.combined_html = None
                     st.session_state.ocr_results = []
-                    st.session_state.api_results = {"success": False, "data": [], "error": None}
+                    st.session_state.api_results = {"success": False, "data": {}, "error": None}
                     st.session_state.display_images = []
                     st.session_state.timing = {}
                     st.session_state.pdf_filename = None
@@ -398,7 +419,8 @@ def main():
                 st.warning(f"⚠️ API Extraction: {api_results['error']}")
             
             if api_results.get("success"):
-                st.success("✅ API extraction successful!")
+                detected_lang = api_results.get("language", "unknown")
+                st.success(f"✅ API extraction successful! (Detected language: {detected_lang})")
             
             st.markdown("---")
             
@@ -424,7 +446,7 @@ def main():
                     combined_html = generate_combined_viewer_html(
                         st.session_state.display_images,
                         st.session_state.ocr_results,
-                        st.session_state.api_results.get("data", [])
+                        st.session_state.api_results.get("data", {})
                     )
                     components.html(combined_html, height=850, scrolling=True)
                 else:
@@ -464,19 +486,18 @@ def main():
                         data=all_text,
                         file_name="ocr_extracted_text.txt",
                         mime="text/plain",
-                        width='stretch'
+                        use_container_width=True
                     )
             
             with col2:
                 if api_results.get("data"):
-                    import json
-                    json_data = json.dumps(api_results["data"], indent=2)
+                    json_data = json.dumps(api_results["data"], indent=2, ensure_ascii=False)
                     st.download_button(
                         label="📊 Download API Data (JSON)",
                         data=json_data,
                         file_name="extracted_data.json",
                         mime="application/json",
-                        width='stretch'
+                        use_container_width=True
                     )
             
             with col3:
@@ -486,99 +507,176 @@ def main():
                         data=st.session_state.combined_html,
                         file_name="pdf_viewer.html",
                         mime="text/html",
-                        width='stretch'
+                        use_container_width=True
                     )
 
 
 def display_extracted_data(api_results: dict):
-    """Display extracted data from API in a structured format"""
-    if api_results.get("data"):
-        for batch in api_results["data"]:
-            batch_no = batch.get("batch_number", "N/A")
-            page_range = batch.get("page_range", "N/A")
-            response = batch.get("response", {})
-            
-            with st.expander(f"📦 Batch {batch_no} (Pages {page_range})", expanded=True):
-                
-                # Analysis Instruction
-                if response.get("analysis_instruction"):
-                    st.markdown("##### 🧪 Analysis Instruction")
-                    df = pd.DataFrame(
-                        response["analysis_instruction"].items(),
-                        columns=["Field", "Value"]
-                    )
-                    st.dataframe(df, hide_index=True, width='stretch')
-                
-                # Specifications
-                if response.get("specifications"):
-                    st.markdown("##### 📏 Specifications")
-                    st.dataframe(
-                        pd.DataFrame(response["specifications"]),
-                        hide_index=True,
-                        width='stretch'
-                    )
-                
-                # Protocol Info
-                if response.get("protocol_info"):
-                    st.markdown("##### 📑 Protocol Information")
-                    df = pd.DataFrame(
-                        response["protocol_info"].items(),
-                        columns=["Field", "Value"]
-                    )
-                    st.dataframe(df, hide_index=True, width='stretch')
-                
-                # Instrumentation
-                if response.get("instrumentation"):
-                    st.markdown("##### ⚙️ Instrumentation")
-                    inst_rows = []
-                    for key, val in response["instrumentation"].items():
-                        if isinstance(val, dict):
-                            for sub_k, sub_v in val.items():
-                                inst_rows.append({
-                                    "Instrument": key,
-                                    "Field": sub_k,
-                                    "Value": sub_v
-                                })
-                        else:
-                            inst_rows.append({
-                                "Instrument": key,
-                                "Field": "",
-                                "Value": val
-                            })
-                    st.dataframe(
-                        pd.DataFrame(inst_rows),
-                        hide_index=True,
-                        width='stretch'
-                    )
-                
-                # Reagents
-                if response.get("reagents"):
-                    st.markdown("##### 🧴 Reagents")
-                    st.dataframe(
-                        pd.DataFrame(response["reagents"]),
-                        hide_index=True,
-                        width='stretch'
-                    )
-                
-                # Consumables
-                if response.get("consumables"):
-                    st.markdown("##### 🧾 Consumables")
-                    st.dataframe(
-                        pd.DataFrame(response["consumables"]),
-                        hide_index=True,
-                        width='stretch'
-                    )
-                
-                # Sign-off
-                if response.get("sign_off"):
-                    st.markdown("##### ✍️ Sign-off")
-                    df = pd.DataFrame(
-                        response["sign_off"].items(),
-                        columns=["Field", "Value"]
-                    )
-                    st.dataframe(df, hide_index=True, width='stretch')
-    else:
+    """Display extracted data from API in a structured format (non-batch)"""
+    
+    data = api_results.get("data", {})
+    
+    if not data:
         st.info("No structured data extracted from API")
+        return
+    
+    # Show metadata if available
+    metadata = data.get("_metadata", {})
+    if metadata:
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            st.metric("📄 Pages Processed", metadata.get("total_pages_processed", "N/A"))
+        with col2:
+            st.metric("✅ Processing Complete", "Yes" if metadata.get("processing_complete") else "No")
+        with col3:
+            st.metric("🌐 Language", api_results.get("language", "N/A"))
+    
+    st.markdown("---")
+    
+    # Analysis Instruction
+    if data.get("analysis_instruction"):
+        with st.expander("🧪 Analysis Instruction", expanded=True):
+            df = pd.DataFrame(
+                [(k, v) for k, v in data["analysis_instruction"].items() if v is not None],
+                columns=["Field", "Value"]
+            )
+            st.dataframe(df, hide_index=True, use_container_width=True)
+    
+    # Protocol Header
+    if data.get("protocol_header"):
+        with st.expander("📑 Protocol Header", expanded=True):
+            protocol = data["protocol_header"]
+            
+            # Basic info
+            basic_info = {k: v for k, v in protocol.items() if k != "instruments" and v is not None}
+            if basic_info:
+                st.markdown("##### Basic Information")
+                df = pd.DataFrame(
+                    list(basic_info.items()),
+                    columns=["Field", "Value"]
+                )
+                st.dataframe(df, hide_index=True, use_container_width=True)
+            
+            # Instruments
+            instruments = protocol.get("instruments", {})
+            if instruments:
+                st.markdown("##### ⚙️ Instruments")
+                inst_rows = [(k, v) for k, v in instruments.items() if v is not None]
+                if inst_rows:
+                    df = pd.DataFrame(inst_rows, columns=["Instrument", "Value"])
+                    st.dataframe(df, hide_index=True, use_container_width=True)
+    
+    # Reagents
+    if data.get("reagents"):
+        with st.expander("🧴 Reagents", expanded=False):
+            reagents = data["reagents"]
+            for reagent_key, reagent_data in reagents.items():
+                if reagent_data:
+                    reagent_id = reagent_data.get("reagent_id", "")
+                    reagent_name = reagent_data.get("name", reagent_key)
+                    st.markdown(f"**{reagent_id}. {reagent_name}**")
+                    
+                    # Filter out None values and display
+                    reagent_info = {k: v for k, v in reagent_data.items() if v is not None and k not in ["reagent_id", "name"]}
+                    if reagent_info:
+                        df = pd.DataFrame(list(reagent_info.items()), columns=["Field", "Value"])
+                        st.dataframe(df, hide_index=True, use_container_width=True)
+                    st.markdown("---")
+    
+    # Preparation Records
+    if data.get("preparation_records"):
+        with st.expander("📝 Preparation Records", expanded=False):
+            prep_records = data["preparation_records"]
+            for prep_key, prep_data in prep_records.items():
+                if prep_data:
+                    st.markdown(f"**{prep_key.replace('_', ' ').title()}**")
+                    display_nested_dict(prep_data)
+                    st.markdown("---")
+    
+    # Standards
+    if data.get("standards"):
+        with st.expander("📏 Standards", expanded=False):
+            standards = data["standards"]
+            for std_key, std_data in standards.items():
+                if std_data:
+                    st.markdown(f"**{std_key.replace('_', ' ').title()}**")
+                    display_nested_dict(std_data)
+                    st.markdown("---")
+    
+    # Test Solutions
+    if data.get("test_solutions"):
+        with st.expander("🧪 Test Solutions", expanded=False):
+            test_solutions = data["test_solutions"]
+            for sol_key, sol_data in test_solutions.items():
+                if sol_data:
+                    st.markdown(f"**{sol_key.replace('_', ' ').title()}**")
+                    if isinstance(sol_data, list):
+                        if sol_data:
+                            st.dataframe(pd.DataFrame(sol_data), hide_index=True, use_container_width=True)
+                        else:
+                            st.caption("No data")
+                    else:
+                        display_nested_dict(sol_data)
+    
+    # System Suitability Test
+    if data.get("system_suitability_test"):
+        with st.expander("✅ System Suitability Test", expanded=False):
+            sst = data["system_suitability_test"]
+            for sst_key, sst_data in sst.items():
+                if sst_data and isinstance(sst_data, dict):
+                    criterion_name = sst_data.get("criterion_name", sst_key.replace('_', ' ').title())
+                    st.markdown(f"**{criterion_name}**")
+                    sst_info = {k: v for k, v in sst_data.items() if v is not None and k != "criterion_name"}
+                    if sst_info:
+                        df = pd.DataFrame(list(sst_info.items()), columns=["Field", "Value"])
+                        st.dataframe(df, hide_index=True, use_container_width=True)
+                elif sst_data is not None:
+                    st.write(f"**{sst_key}**: {sst_data}")
+    
+    # Traceability
+    if data.get("traceability"):
+        with st.expander("🔍 Traceability", expanded=False):
+            trace = data["traceability"]
+            trace_info = {k: v for k, v in trace.items() if v is not None}
+            if trace_info:
+                # Handle list values
+                for k, v in trace_info.items():
+                    if isinstance(v, list):
+                        trace_info[k] = ", ".join(str(x) for x in v)
+                df = pd.DataFrame(list(trace_info.items()), columns=["Field", "Value"])
+                st.dataframe(df, hide_index=True, use_container_width=True)
+
+
+def display_nested_dict(data: dict, level: int = 0):
+    """Helper function to display nested dictionaries"""
+    simple_items = {}
+    complex_items = {}
+    
+    for k, v in data.items():
+        if v is None:
+            continue
+        if isinstance(v, dict):
+            complex_items[k] = v
+        elif isinstance(v, list):
+            if v and isinstance(v[0], dict):
+                complex_items[k] = v
+            else:
+                simple_items[k] = ", ".join(str(x) for x in v) if v else ""
+        else:
+            simple_items[k] = v
+    
+    # Display simple items as table
+    if simple_items:
+        df = pd.DataFrame(list(simple_items.items()), columns=["Field", "Value"])
+        st.dataframe(df, hide_index=True, use_container_width=True)
+    
+    # Display complex items
+    for k, v in complex_items.items():
+        st.markdown(f"*{k.replace('_', ' ').title()}:*")
+        if isinstance(v, dict):
+            display_nested_dict(v, level + 1)
+        elif isinstance(v, list):
+            st.dataframe(pd.DataFrame(v), hide_index=True, use_container_width=True)
 
 
 if __name__ == "__main__":
