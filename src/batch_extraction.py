@@ -4,7 +4,6 @@ from azure.ai.documentintelligence.models import DocumentAnalysisFeature
 from azure.ai.documentintelligence.models import DocumentContentFormat
 from openai import AsyncAzureOpenAI
 
-from models.schema import DataExtractionSchema
 from models.swedish_poc_model import LCAnalyticalDocumentSwedish
 from models.english_enity_model import LCAnalyticalDocumentEnglish
 from utils.utils import  merge_batch_responses, deduplicate_list_of_dicts
