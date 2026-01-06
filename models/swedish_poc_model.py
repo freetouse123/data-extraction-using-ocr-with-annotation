@@ -129,7 +129,7 @@ class WeighingProtocol(BaseModel):
 class pHMeterLog(BaseModel):
     """pH meter reading log"""
     device_label: Optional[str] = None
-    datetime: Optional[datetime] = None
+    Datetime: Optional[datetime] = None
     run_number: Optional[str] = None
     temperature_c: Optional[float] = Field(None, description="Temperature in Celsius")
     recorded_ph: Optional[float] = Field(None, description="Recorded pH value")
