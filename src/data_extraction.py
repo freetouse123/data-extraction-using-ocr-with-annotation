@@ -4,7 +4,6 @@ from azure.ai.documentintelligence.models import DocumentAnalysisFeature
 from azure.ai.documentintelligence.models import DocumentContentFormat
 from openai import AsyncAzureOpenAI
 
-from models.schema import DataExtractionSchema
 from models.swedish_poc_model import LCAnalyticalDocumentSwedish
 from models.english_enity_model import LCAnalyticalDocumentEnglish
 
@@ -59,16 +58,30 @@ class DocumentDataExtractor:
             raise
     
     @RETRY_CONFIG
-    async def response_generation(self, content:str)-> str:
+    async def response_generation(self, content:str, language:str="English")-> str:
+
+        if language.lower() == "english":
+            validator_model = LCAnalyticalDocumentEnglish
+        else:
+            validator_model = LCAnalyticalDocumentSwedish
+        
+        system_prompt = f"""
+Language: {language}
+{Config.system_prompt_for_entity_extraction}
+
+- Do not infer missing information
+- Always provide response in Following language: {language}
+"""
+
         try:
             logger.info("Generating the response of the extracted content")
             response = await self.openai_client.beta.chat.completions.parse(
                 model = os.getenv("AZURE_OPENAI_DEPLOYMENT"),
                 messages = [
-                    {"role":"system", "content":Config.system_prompt_for_entity_extraction},
+                    {"role":"system", "content":system_prompt},
                     {"role":"user","content": content},
                     ],
-                response_format= LCAnalyticalDocumentSwedish,
+                response_format= validator_model,
             )
 
             ## total token used to generate the response:

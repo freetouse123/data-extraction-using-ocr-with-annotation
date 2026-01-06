@@ -1,7 +1,8 @@
-from fastapi import APIRouter, File, UploadFile, HTTPException
+from fastapi import APIRouter, File, UploadFile, HTTPException, Form
 from src.data_extraction import DocumentDataExtractor
 import uuid
 import time
+from typing import Literal
 
 data_extraction = APIRouter(
     tags=["data_extraction"],
@@ -10,7 +11,10 @@ data_extraction = APIRouter(
 
 
 @data_extraction.post("/extract-data", response_model=dict)
-async def extract_data(pdf: UploadFile = File(...)):
+async def extract_data(
+    pdf: UploadFile = File(...),
+    language: Literal["english", "swedish"] = Form(...)
+):
     if not pdf.filename.lower().endswith(".pdf"):
         raise HTTPException(status_code=400, detail="Only PDF files are allowed")
 
@@ -24,7 +28,10 @@ async def extract_data(pdf: UploadFile = File(...)):
         doc_result = await extractor.extract_data(pdf_bytes)
 
         content = doc_result.content  
-        response = await extractor.response_generation(content=content)
+        response = await extractor.response_generation(
+            content=content,
+            language=language,
+            )
 
         end_time = time.time()
 
