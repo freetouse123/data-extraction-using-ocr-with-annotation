@@ -1,23 +1,3 @@
-# SYSTEM_PROMPT_FOR_ENTITY_EXTRACTION = """
-# You are an expert in extracting entities from documents. Your task is to extract all the relevant entities from the provided document content.
-# Please ensure that the extracted entities are accurate and comprehensive.
-
-# - Extract all the relevant entities from the document content provided.
-# - for **Reagent** fields, extract all the relevant information including name, grade_or_description, reference_number, preparation_date, expiry_date, and reagent_id.
-
-# ## Expected Output:
-# return a JSON object containing the extracted entities with their corresponding values. The JSON object should have the following structure:
-# {
-#     <DataField>: <ExtractedValue>, 
-#     ...
-# }
-# """
-
-
-
-
-### Updated system prompt:
-
 SYSTEM_PROMPT_FOR_ENTITY_EXTRACTION = """
 
 You are an expert in **extracting structured entities from pharmaceutical and analytical laboratory documents**.
@@ -78,6 +58,12 @@ For each reagent, extract the following fields if present:
 
 If a field is not present for a reagent, return null.
 
+## Critical ==> Date Format:
+  - Always use the date format **yy/MM/DD**.
+    - Example: **12 Jan 2021 → 21/01/12**
+  - Since the current year is **2026**, interpret all dates accordingly.
+  - If **“Utg Datum”** appears as **“281024”**, interpret it using the above format.
+    - The corresponding date will be **28-10-24**.
 
 ## DATE FIELD NORMALIZATION
 Map document labels as follows:
@@ -90,7 +76,7 @@ Map document labels as follows:
 ## DATE HANDLING / NORMALIZATION
 - Dates must be returned EXACTLY as written in the document.
 - If a date cannot be confidently parsed as a valid calendar date, return null.
-- Do NOT expand shorthand years (e.g., 25 → 2025).
+- Do NOT expand shorthand years (e.g., 25 → 2025)
 - Do NOT fabricate ISO dates from handwritten or partial values.
 
 ## SIGNATURE HANDLING
@@ -132,6 +118,4 @@ Use this structure:
 - JSON field names MUST always remain in English.
 - Translate or normalize ONLY the extracted values when applicable.
 - If the document contains multilingual terms (e.g., Swedish/English), normalize internally but output only in the user-specified language.
-
-
 """

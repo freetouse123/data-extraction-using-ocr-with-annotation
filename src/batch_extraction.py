@@ -70,7 +70,7 @@ class BatchDocumentExtraction:
 
         try:
             system_prompt = f"""
-Language: {language}
+# Language: {language}
 {Config.system_prompt_for_entity_extraction}
 
 BATCH CONTEXT:
@@ -78,12 +78,15 @@ BATCH CONTEXT:
 - Page range: {batch_context.get('page_range')}
 - Total batches: {batch_context.get('total_batches')}
 
-INSTRUCTIONS:
+# INSTRUCTIONS:
 - Extract ALL information present in this batch
 - If a section is incomplete (starts or ends mid-section), extract what's available
 - Mark sections as 'partial' if they appear incomplete
 - Do not infer missing information
 - Always provide response in Following language: {language}
+
+# Critical Instrctions:
+- Always maintain the **Date Format** as per **"YY-MM-DD"** like **"21-01-01"**
 """
             
             logger.info("Generating the response of the extracted content")
