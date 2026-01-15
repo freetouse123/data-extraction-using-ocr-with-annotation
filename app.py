@@ -26,7 +26,7 @@ load_dotenv()
 # PAGE CONFIG
 # ==========================
 st.set_page_config(
-    page_title="Alembic Handwritten Fields Extraction ",
+    page_title="Alembic Document Translation From Swedish to English",
     page_icon="📄",
     layout="wide",
     initial_sidebar_state="expanded"
@@ -92,7 +92,7 @@ st.markdown("""
 # ==========================
 # SIDEBAR
 # ==========================
-st.sidebar.title("📄 Alembic Handwritten Fields Extraction ")
+st.sidebar.title("📄 Alembic Document Translation From Swedish to English ")
 st.sidebar.markdown("---")
 
 # Language Selection
@@ -191,7 +191,7 @@ def process_with_progress(
 # MAIN APP
 # ==========================
 def main():
-    st.title("📄 Alembic Handwritten Fields Extraction ")
+    st.title("📄 Alembic Document Translation From Swedish to English ")
     st.markdown(
         '<p class="subtitle">Upload a PDF For extraction of the Handwritten Fields using the OCR</p>',
         unsafe_allow_html=True
@@ -245,7 +245,7 @@ def main():
             col1, col2, col3 = st.columns([1, 2, 1])
             with col2:
                 process_btn = st.button(
-                    "🚀 Extract Text & Data",
+                    "🚀 Translate document",
                     type="primary",
                     use_container_width=True
                 )
@@ -271,7 +271,7 @@ def main():
                 ocr_status_text = st.empty()
             
             with col2:
-                st.markdown("**📊 API Data Extraction**")
+                st.markdown("**📊 API For Data Translated from Swedish to English**")
                 api_progress_bar = st.progress(0)
                 api_status_text = st.empty()
             
@@ -427,7 +427,7 @@ def main():
             # Display mode selection
             display_mode = st.radio(
                 "Display Mode",
-                ["🔀 Combined View (Side by Side)", "📄 PDF Viewer Only", "📊 Extracted Data Only"],
+                ["🔀 Combined View (Side by Side)", "📄 PDF Viewer Only", "📊 Data Translated from Swedish to English Only"],
                 horizontal=True
             )
             
@@ -451,7 +451,7 @@ def main():
                     components.html(combined_html, height=850, scrolling=True)
                 else:
                     st.warning("Combined view not available. Showing data separately.")
-                    display_mode = "📊 Extracted Data Only"
+                    display_mode = "📊 Data Translated from Swedish to English Only"
             
             if display_mode == "📄 PDF Viewer Only":
                 if st.session_state.display_images and st.session_state.ocr_results:
@@ -464,7 +464,7 @@ def main():
                 else:
                     st.warning("PDF viewer not available. Azure Vision API might not be configured.")
             
-            if display_mode == "📊 Extracted Data Only":
+            if display_mode == "📊 Data Translated from Swedish to English Only":
                 display_extracted_data(api_results)
             
             # Download section
@@ -512,7 +512,7 @@ def main():
 
 
 def display_extracted_data(api_results: dict):
-    """Display extracted data from API in a structured format (non-batch)"""
+    """Display Data Translated from Swedish to English from API in a structured format (non-batch)"""
     
     data = api_results.get("data", {})
     

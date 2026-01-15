@@ -59,7 +59,7 @@ For each reagent, extract the following fields if present:
 If a field is not present for a reagent, return null.
 
 ## Critical ==> Date Format:
-  - Always use the date format **yy/MM/DD**.
+  - Always use the date format **YY/MM/DD**.
     - Example: **12 Jan 2021 → 21/01/12**
   - Since the current year is **2026**, interpret all dates accordingly.
   - If **“Utg Datum”** appears as **“281024”**, interpret it using the above format.

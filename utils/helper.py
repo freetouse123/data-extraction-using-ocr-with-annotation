@@ -1084,7 +1084,7 @@ def generate_combined_viewer_html(
             <!-- Right Panel: Extracted Data -->
             <div class="right-panel">
                 <div class="panel-header">
-                    <h2>📊 Extracted Data</h2>
+                    <h2>📊 Data Translated from Swedish to English </h2>
                     <div class="stats-row">
                         <span class="stat">📦 <span class="stat-val">{len(extracted_data)}</span> batches</span>
                     </div>
