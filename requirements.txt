@@ -16,3 +16,8 @@ azure-ai-vision-imageanalysis
 PyMuPDF
 pillow
 tenacity==9.1.2
+reportlab
+pypdf>=3.0 
+reportlab 
+pillow 
+pdf2image

@@ -183,3 +183,5 @@ test.py
 *.ipynb
 /Test_Cases
 testing.py
+testing_*.py
+*/testing_*.py
