@@ -9,7 +9,7 @@ from typing import Optional
 import io
 import time
 
-from src.image_data_extraction_v2 import BatchProcessor
+from data_extraction.image_data_extraction_v2 import BatchProcessor
 from src.pdf_annotator import PdfAnnotator, PdfAnnotatorSimple
 from utils.logger import get_logger
 

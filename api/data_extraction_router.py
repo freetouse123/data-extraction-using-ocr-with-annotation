@@ -1,5 +1,5 @@
 from fastapi import APIRouter, File, UploadFile, HTTPException, Form
-from src.data_extraction import DocumentDataExtractor
+from data_extraction.data_extraction import DocumentDataExtractor
 import uuid
 import time
 from typing import Literal

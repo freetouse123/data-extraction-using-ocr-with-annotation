@@ -1,7 +1,7 @@
 from models.schema import InputParameter
 from typing import Literal
 from fastapi import APIRouter, File, UploadFile, HTTPException, Form
-from src.batch_extraction import BatchDocumentExtraction
+from data_extraction.batch_extraction import BatchDocumentExtraction
 import time
 
 

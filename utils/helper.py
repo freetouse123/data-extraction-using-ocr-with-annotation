@@ -4,6 +4,9 @@ Helper functions for PDF processing, OCR normalization, and HTML generation
 from .logger import get_logger
 from typing import List, Dict, Tuple
 import base64
+import math
+from pdf2image import convert_from_path
+from PIL import Image, ImageSequence
 
 logger = get_logger(__name__)
 
@@ -92,6 +95,22 @@ def normalize_ocr(ocr_result, img_width: int, img_height: int) -> List[Dict[str,
                 annotations.append(annotation)
     
     return annotations
+
+
+
+@staticmethod
+def _dist(polygon, i1, i2):
+    x1, y1 = polygon[i1], polygon[i1 + 1]
+    x2, y2 = polygon[i2], polygon[i2 + 1]
+    return math.sqrt((x1 - x2) ** 2 + (y1 - y2) ** 2)
+
+@staticmethod
+def _load_images(input_file: str):
+    if input_file.lower().endswith(".pdf"):
+        return convert_from_path(input_file)
+    return list(ImageSequence.Iterator(Image.open(input_file)))
+
+
 
 
 def generate_page_options(total_pages: int) -> str:

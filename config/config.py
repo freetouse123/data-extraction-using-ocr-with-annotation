@@ -14,6 +14,11 @@ class Config:
     DISPLAY_DPI: int = int(os.getenv("DISPLAY_DPI", 150))
     BATCH_SIZE: int = int(os.getenv("BATCH_SIZE", 5))
     MAX_WORKERS: int = int(os.getenv("MAX_WORKERS", 3))
+    SUPPORTED_EXTENSIONS = (
+        ".pdf", ".tif", ".tiff", ".jpg", ".jpeg", ".png", ".bmp"
+    )
+
+    DEFAULT_FONT = "Times-Roman"
 
 
 
